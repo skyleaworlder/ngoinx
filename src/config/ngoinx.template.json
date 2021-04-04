@@ -1,0 +1,35 @@
+{
+  "service": [
+    {
+      "listen": 10080,
+      "proxy": [
+        {
+          "src": "/api/v1/test",
+          "target": [
+            { "dst": "http://127.0.0.1:10081", "weight": 3 },
+            { "dst": "http://127.0.0.1:10082", "weight": 2 }
+          ]
+        },
+        {
+          "src": "/api/v1/food",
+          "target": [
+            { "dst": "http://127.0.0.1:10083", "weight": 1 },
+            { "dst": "http://127.0.0.1:10084", "weight": 2 }
+          ]
+        }
+      ]
+    },
+
+    {
+      "listen": 30080,
+      "proxy": [
+        {
+          "src": "/api/v3/test",
+          "target": [
+            { "dst": "http://127.0.0.1:30081", "weight": 1 }
+          ]
+        }
+      ]
+    }
+  ]
+}
