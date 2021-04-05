@@ -39,8 +39,8 @@ func handlerGenerator() (handler http.HandlerFunc) {
 			return
 		}
 		// get scheme://userinfo@host
-		fmt.Println("url.path", r.URL.Path)
-		fmt.Println("map get:", ldbls.LdblserMap, ldbls.LdblserMap[r.URL.Path])
+		fmt.Println("url.path:", r.URL.Path)
+		// fmt.Println("map get:", ldbls.LdblserMap, ldbls.LdblserMap[r.URL.Path])
 		addr, err := ldbls.LdblserMap[r.URL.Path].GetAddr(r)
 		fmt.Println("addr chosen:", addr)
 		if err != nil {
@@ -49,7 +49,8 @@ func handlerGenerator() (handler http.HandlerFunc) {
 		}
 
 		// cat relayURL
-		relayURL := addr + "/" + r.URL.Path + r.URL.RawQuery + r.URL.Fragment
+		relayURL := addr + r.URL.Path + r.URL.RawQuery + r.URL.Fragment
+		fmt.Println("relay URL:", relayURL)
 		req, err := http.NewRequest(r.Method, relayURL, strings.NewReader(string(body)))
 		fmt.Println(req.Header)
 		if err != nil {

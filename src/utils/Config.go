@@ -10,15 +10,16 @@ import (
 )
 
 // ReadConfig is a tool func to read config file
-func ReadConfig(path string) (err error) {
+func ReadConfig(path string) (service []config.Service, err error) {
 	cfg, err := readConfigFile(path)
 	if err != nil {
 		log.Println("ngoinx.utils.ReadConfigFile error: readConfigFile failed:", err.Error())
-		return err
+		return []config.Service{}, err
 	}
 
-	initService(cfg)
-	return
+	// in fact, service is config.Svc (global variable)
+	service = initService(cfg)
+	return service, nil
 }
 
 func readConfigFile(path string) (res gjson.Result, err error) {
@@ -37,10 +38,11 @@ func readConfigFile(path string) (res gjson.Result, err error) {
 	return gjson.Get(string(contents), "service"), nil
 }
 
-func initService(cfg gjson.Result) {
+func initService(cfg gjson.Result) (service []config.Service) {
 	for _, svc := range cfg.Array() {
 		s := config.Service{}
 		s.Unmarshal(svc)
 		config.Svc = append(config.Svc, s)
 	}
+	return config.Svc
 }

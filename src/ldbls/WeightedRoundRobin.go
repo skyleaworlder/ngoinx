@@ -14,6 +14,11 @@ type WeightRoundRobin struct {
 	pointer int
 }
 
+// NewDefaultWeightedRoundRobin is default constructor
+func NewDefaultWeightedRoundRobin(size int) (wr *WeightRoundRobin) {
+	return &WeightRoundRobin{Size: size, Nodes: []*RoundRobinNode{}, pointer: 0}
+}
+
 // RoundRobinNode is a struct
 // time means the number of times, which Node has been queried
 // time always -le weight
