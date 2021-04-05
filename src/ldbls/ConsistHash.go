@@ -29,12 +29,12 @@ func NewDefaultConsistHash(size int) (c *ConsistHash) {
 		return i.(*ConHashNode).HID <= j.(*ConHashNode).HID
 	}
 	c = &ConsistHash{Size: size, Compfunc: compfunc, HT: nil}
-    return
+	return
 }
 
 // ConHashNode is a struct
 // SN means Serial Number
-// HID = sha1(dst + SN)
+// HID = sha1(SN + dst)
 type ConHashNode struct {
 	HID    uint64
 	dst    string
@@ -50,12 +50,22 @@ func (c *ConsistHash) Init(targets []config.Target) (err error) {
 		return errors.New(msg)
 	}
 
-	for sn, target := range targets {
-		HID := utils.GetHashID(strconv.Itoa(sn) + target.Dst)
-		if err = c.postNode(HID, target.Dst, target.Weight, sn); err != nil {
-			return err
+	// each target has its own "dst" and "weight"
+	for _, target := range targets {
+		// SN is always smaller than "target.Weight"
+		for sn := 0; sn < target.Weight; sn++ {
+			HID := utils.GetHashID(strconv.Itoa(sn) + target.Dst)
+			if err = c.postNode(HID, target.Dst, target.Weight, sn); err != nil {
+				return err
+			}
 		}
 	}
+
+	// for debug
+	// iter, _ := c.HT.IterCh()
+	// for rec := range iter.Records() {
+	//	   fmt.Println("key:", rec.Key, "value:", rec.Val)
+	// }
 	return nil
 }
 
@@ -82,8 +92,10 @@ func (c *ConsistHash) GetAddr(req *http.Request) (addr string, err error) {
 			return "", errors.New(msg + err.Error())
 		}
 
+		// for debug
+		// fmt.Print("delta:", delta, "; tmpDelta:", tmpDelta, "\n")
+
 		// refresh
-		fmt.Print("delta:", delta, "; tmpDelta:", tmpDelta, "\n")
 		if tmpDelta < delta {
 			// for debug
 			// fmt.Print("delta:", tmpDelta, "\n")

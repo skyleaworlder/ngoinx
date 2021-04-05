@@ -14,7 +14,9 @@
           "src": "/api/v1/food",
           "target": [
             { "dst": "http://127.0.0.1:10083", "weight": 1 },
-            { "dst": "http://127.0.0.1:10084", "weight": 2 }
+            { "dst": "http://127.0.0.1:10084", "weight": 2 },
+            { "dst": "http://127.0.0.1:10085", "weight": 3 },
+            { "dst": "http://127.0.0.1:10086", "weight": 1 }
           ]
         }
       ]
