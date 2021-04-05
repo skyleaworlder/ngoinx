@@ -23,6 +23,15 @@ type ConsistHash struct {
 	HT *sm.SortedMap
 }
 
+// NewDefaultConsistHash is to new a default consist hash obj
+func NewDefaultConsistHash(size int) (c *ConsistHash) {
+	compfunc := func(i, j interface{}) bool {
+		return i.(*ConHashNode).HID <= j.(*ConHashNode).HID
+	}
+	c = &ConsistHash{Size: size, Compfunc: compfunc, HT: nil}
+    return
+}
+
 // ConHashNode is a struct
 // SN means Serial Number
 // HID = sha1(dst + SN)
