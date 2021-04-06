@@ -2,6 +2,7 @@
   "service": [
     {
       "listen": 10080,
+      "log": "./log/",
       "proxy": [
         {
           "src": "/api/v1/test",
@@ -24,6 +25,7 @@
 
     {
       "listen": 30080,
+      "log": "./log/",
       "proxy": [
         {
           "src": "/api/v3/test",
