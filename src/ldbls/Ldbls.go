@@ -35,10 +35,10 @@ type LoadBalancer interface {
 // len(target) \in [4, \inf] => use ConsistHash
 func LdblserMapStuffer(service []config.Service) {
 	for _, svc := range service {
-		for _, proxy := range svc.Proxies {
+		for idx, proxy := range svc.Proxies {
 			var ldblser LoadBalancer
 			if len(proxy.Target) >= 4 {
-				ldblser = NewDefaultConsistHash(len(proxy.Target))
+				ldblser = NewDefaultConsistHash(len(proxy.Target), idx)
 			} else {
 				ldblser = NewDefaultWeightedRoundRobin(len(proxy.Target))
 			}

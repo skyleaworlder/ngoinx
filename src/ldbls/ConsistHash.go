@@ -5,11 +5,12 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"log"
 	"net/http"
 	"net/http/httputil"
+	"os"
 	"strconv"
 
+	log "github.com/sirupsen/logrus"
 	"github.com/skyleaworlder/ngoinx/src/config"
 	"github.com/skyleaworlder/ngoinx/src/utils"
 	sm "github.com/umpc/go-sortedmap"
@@ -18,17 +19,26 @@ import (
 // ConsistHash is a struct implement LoadBalancer
 type ConsistHash struct {
 	Size     int
+	No       int
 	Compfunc sm.ComparisonFunc
+	log      *log.Entry
 
 	HT *sm.SortedMap
 }
 
 // NewDefaultConsistHash is to new a default consist hash obj
-func NewDefaultConsistHash(size int) (c *ConsistHash) {
+func NewDefaultConsistHash(size, No int) (c *ConsistHash) {
 	compfunc := func(i, j interface{}) bool {
 		return i.(*ConHashNode).HID <= j.(*ConHashNode).HID
 	}
-	c = &ConsistHash{Size: size, Compfunc: compfunc, HT: nil}
+	logName := "ConsistHash-" + strconv.Itoa(No) + ".log"
+	fd, err := os.OpenFile(logName, os.O_CREATE|os.O_WRONLY, 0755)
+	if err != nil {
+		fmt.Println("ngoinx.ldbls.ConsistHash.NewDefaultConsistHash error: create/open log file", logName, "failed")
+		return nil
+	}
+	logger := utils.LoggerGenerator(&log.TextFormatter{}, fd, log.DebugLevel)
+	c = &ConsistHash{Size: size, No: No, Compfunc: compfunc, log: logger, HT: nil}
 	return
 }
 
@@ -46,7 +56,7 @@ type ConHashNode struct {
 func (c *ConsistHash) Init(targets []config.Target) (err error) {
 	if c.HT = sm.New(c.Size, c.Compfunc); c.HT == nil {
 		msg := "ngoinx.ldbls.ConsistHash.Init error: sortedMap.New failed"
-		log.Println(msg)
+		c.log.Warning(msg)
 		return errors.New(msg)
 	}
 
@@ -60,12 +70,6 @@ func (c *ConsistHash) Init(targets []config.Target) (err error) {
 			}
 		}
 	}
-
-	// for debug
-	// iter, _ := c.HT.IterCh()
-	// for rec := range iter.Records() {
-	//	   fmt.Println("key:", rec.Key, "value:", rec.Val)
-	// }
 	return nil
 }
 
@@ -78,7 +82,7 @@ func (c *ConsistHash) GetAddr(req *http.Request) (addr string, err error) {
 
 	iter, err := c.HT.IterCh()
 	if err != nil {
-		log.Println("ngoinx.ldbls.ConsistHash.GetAddr error:", err.Error())
+		c.log.Warning("ngoinx.ldbls.ConsistHash.GetAddr error:", err.Error())
 		return "", err
 	}
 	defer iter.Close()
@@ -88,17 +92,17 @@ func (c *ConsistHash) GetAddr(req *http.Request) (addr string, err error) {
 		tmpDelta, err := utils.DeltaUint64(HID, rec.Key.(uint64))
 		if err != nil {
 			msg := "ngoinx.ldbls.ConsistHash.GetAddr error: conhash.DeltaUint64 failed :"
-			log.Println(msg + err.Error())
+			c.log.Warning(msg + err.Error())
 			return "", errors.New(msg + err.Error())
 		}
 
 		// for debug
-		// fmt.Print("delta:", delta, "; tmpDelta:", tmpDelta, "\n")
+		c.log.WithFields(log.Fields{"delta": delta, "tmpDelta": tmpDelta}).Info(
+			"ConsistHash GetAddr is walking through c.HT and trying to find the suitable Node for request",
+		)
 
 		// refresh
 		if tmpDelta < delta {
-			// for debug
-			// fmt.Print("delta:", tmpDelta, "\n")
 			delta = tmpDelta
 			addr = rec.Val.(*ConHashNode).dst
 		}
@@ -115,7 +119,7 @@ func (c *ConsistHash) postNode(HID uint64, dst string, weight, SN int) (err erro
 	}
 	if ok := c.HT.Insert(HID, node); !ok {
 		msg := "ngoinx.ldbls.ConsistHash.Init warning: HT is full"
-		log.Println(msg)
+		c.log.Warning(msg)
 		return errors.New(msg)
 	}
 	return nil
