@@ -27,18 +27,12 @@ type ConsistHash struct {
 }
 
 // NewDefaultConsistHash is to new a default consist hash obj
-func NewDefaultConsistHash(size, No int) (c *ConsistHash) {
+func NewDefaultConsistHash(size, no int) (c *ConsistHash) {
 	compfunc := func(i, j interface{}) bool {
 		return i.(*ConHashNode).HID <= j.(*ConHashNode).HID
 	}
-	logName := "ConsistHash-" + strconv.Itoa(No) + ".log"
-	fd, err := os.OpenFile(logName, os.O_CREATE|os.O_WRONLY, 0755)
-	if err != nil {
-		fmt.Println("ngoinx.ldbls.ConsistHash.NewDefaultConsistHash error: create/open log file", logName, "failed")
-		return nil
-	}
-	logger := utils.LoggerGenerator(&log.TextFormatter{}, fd, log.DebugLevel)
-	c = &ConsistHash{Size: size, No: No, Compfunc: compfunc, log: logger, HT: nil}
+	logger := log.NewEntry(log.New())
+	c = &ConsistHash{Size: size, No: no, Compfunc: compfunc, log: logger, HT: nil}
 	return
 }
 
@@ -108,6 +102,20 @@ func (c *ConsistHash) GetAddr(req *http.Request) (addr string, err error) {
 		}
 	}
 	return addr, nil
+}
+
+// SetLogger is to set logger
+func (c *ConsistHash) SetLogger(cfg *utils.LoggerConfig) (err error) {
+	// e.g LogPath is "./log/", LogFileName is "ConsistHash-1", LogSuffix is ".log"
+	// then log file is ./log/ConsistHash-1.log
+	logName := cfg.LogPath + cfg.LogFileName + cfg.LogSuffix
+	fd, err := os.OpenFile(logName, os.O_CREATE|os.O_WRONLY, 0755)
+	if err != nil {
+		fmt.Println("ngoinx.ldbls.ConsistHash.SetLogger error: create/open log file", logName, "failed")
+		return err
+	}
+	c.log = utils.LoggerGenerator(cfg.LogFormatter, fd, cfg.LogLevel)
+	return nil
 }
 
 func (c *ConsistHash) postNode(HID uint64, dst string, weight, SN int) (err error) {

@@ -1,22 +1,29 @@
 package ldbls
 
 import (
+	"fmt"
 	"net/http"
+	"os"
 
+	log "github.com/sirupsen/logrus"
 	"github.com/skyleaworlder/ngoinx/src/config"
+	"github.com/skyleaworlder/ngoinx/src/utils"
 )
 
-// WeightRoundRobin is a struct implement LoadBalancer
+// WeightedRoundRobin is a struct implement LoadBalancer
 // pointer points at the Node
-type WeightRoundRobin struct {
+type WeightedRoundRobin struct {
 	Size    int
+	No      int
 	Nodes   []*RoundRobinNode
 	pointer int
+	log     *log.Entry
 }
 
 // NewDefaultWeightedRoundRobin is default constructor
-func NewDefaultWeightedRoundRobin(size int) (wr *WeightRoundRobin) {
-	return &WeightRoundRobin{Size: size, Nodes: []*RoundRobinNode{}, pointer: 0}
+func NewDefaultWeightedRoundRobin(size, no int, logPath string) (wr *WeightedRoundRobin) {
+	logger := log.NewEntry(log.New())
+	return &WeightedRoundRobin{Size: size, No: no, Nodes: []*RoundRobinNode{}, pointer: 0, log: logger}
 }
 
 // RoundRobinNode is a struct
@@ -29,7 +36,7 @@ type RoundRobinNode struct {
 }
 
 // Init is to implement interface "LoadBalancer"
-func (wr *WeightRoundRobin) Init(targets []config.Target) (err error) {
+func (wr *WeightedRoundRobin) Init(targets []config.Target) (err error) {
 	for _, target := range targets {
 		node := RoundRobinNode{dst: target.Dst, weight: target.Weight, time: 0}
 		wr.Nodes = append(wr.Nodes, &node)
@@ -40,7 +47,7 @@ func (wr *WeightRoundRobin) Init(targets []config.Target) (err error) {
 // GetAddr is to implement interface "LoadBalancer"
 // ++time == weight => time = 0
 // ++pointer == Size => pointer = 0
-func (wr *WeightRoundRobin) GetAddr(req *http.Request) (addr string, err error) {
+func (wr *WeightedRoundRobin) GetAddr(req *http.Request) (addr string, err error) {
 	node := wr.Nodes[wr.pointer]
 	addr = node.dst
 
@@ -53,4 +60,18 @@ func (wr *WeightRoundRobin) GetAddr(req *http.Request) (addr string, err error) 
 		}
 	}
 	return addr, nil
+}
+
+// SetLogger is to implement interface "LoadBalancer"
+func (wr *WeightedRoundRobin) SetLogger(cfg *utils.LoggerConfig) (err error) {
+	// e.g LogPath is "./log/", LogFileName is "WeightedRoundRobin-1", LogSuffix is ".log"
+	// then log file is ./log/WeightedRoundRobin-1.log
+	logName := cfg.LogPath + cfg.LogFileName + cfg.LogSuffix
+	fd, err := os.OpenFile(logName, os.O_CREATE|os.O_WRONLY, 0755)
+	if err != nil {
+		fmt.Println("ngoinx.ldbls.WeightedRoundRobin.SetLogger error: create/open log file", logName, "failed")
+		return err
+	}
+	wr.log = utils.LoggerGenerator(cfg.LogFormatter, fd, cfg.LogLevel)
+	return
 }

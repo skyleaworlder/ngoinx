@@ -2,8 +2,12 @@ package ldbls
 
 import (
 	"net/http"
+	"os"
+	"strconv"
 
+	log "github.com/sirupsen/logrus"
 	"github.com/skyleaworlder/ngoinx/src/config"
+	"github.com/skyleaworlder/ngoinx/src/utils"
 )
 
 var (
@@ -28,6 +32,11 @@ type LoadBalancer interface {
 	// in server package,
 	// use "ldbls.LdblserMap[req.URL.Path].GetAddr(r)" to get addr
 	GetAddr(req *http.Request) (addr string, err error)
+
+	// Default logger is log.NewEntry(log.New()), namely,
+	// Logger{ Out: os.Stderr, Formatter: new(logrus.TextFormatter), Hooks: make(logrus.LevelHooks), Level: logrus.DebugLevel }
+	// SetLogger will custom logger
+	SetLogger(cfg *utils.LoggerConfig) (err error)
 }
 
 // LdblserMapStuffer is a tool func to fill ldblsermap
@@ -37,10 +46,17 @@ func LdblserMapStuffer(service []config.Service) {
 	for _, svc := range service {
 		for idx, proxy := range svc.Proxies {
 			var ldblser LoadBalancer
+			cfg := &utils.LoggerConfig{LogPath: svc.Log, LogSuffix: ".log", LogFormatter: &log.TextFormatter{}, LogLevel: log.DebugLevel}
 			if len(proxy.Target) >= 4 {
+				cfg.LogFileName = "ConsistHash-" + strconv.Itoa(idx)
+				cfg.LogOutput, _ = os.OpenFile(cfg.LogPath+cfg.LogFileName+cfg.LogSuffix, os.O_CREATE|os.O_WRONLY, 0755)
 				ldblser = NewDefaultConsistHash(len(proxy.Target), idx)
+				ldblser.SetLogger(cfg)
 			} else {
-				ldblser = NewDefaultWeightedRoundRobin(len(proxy.Target))
+				cfg.LogFileName = "WeightedRoundRobin-" + strconv.Itoa(idx)
+				cfg.LogOutput, _ = os.OpenFile(cfg.LogPath+cfg.LogFileName+cfg.LogSuffix, os.O_CREATE|os.O_WRONLY, 0755)
+				ldblser = NewDefaultWeightedRoundRobin(len(proxy.Target), idx, svc.Log)
+				ldblser.SetLogger(cfg)
 			}
 			ldblser.Init(proxy.Target)
 			LdblserMap[proxy.Src] = ldblser
