@@ -60,15 +60,17 @@ func (s *Server) Serve() (err error) {
 	s.serverLogger.WithField("status", "INIT_BEGIN").Info("Server begins initializing")
 	for idx, svc := range config.Svc {
 		handler := handlerGenerator(s.svcLoggers[idx], s.staticServer)
-		s := &http.Server{
+		httpServer := &http.Server{
 			Addr:           ":" + strconv.Itoa(int(svc.Listen)),
 			Handler:        handler,
 			ReadTimeout:    10 * time.Second,
 			WriteTimeout:   10 * time.Second,
 			MaxHeaderBytes: 1 << 20,
 		}
-		go s.ListenAndServe()
+		go httpServer.ListenAndServe()
 	}
+	go s.staticServer.Serve()
+
 	s.serverLogger.WithField("status", "INIT_END").Info("Server finishs initializing, and prepare for serving")
 	time.Sleep(1000 * time.Second)
 	return errors.New("hahaha")
@@ -82,51 +84,60 @@ func handlerGenerator(logger *log.Entry, sfm *staticfs.FolderManager) (handler h
 			return
 		}
 
+		// e.g. r.URL.Path might be /api/v1/food/1.js
+		// 1. get staticResourceName that exists perhaps, if not return ""
+		// 2. get srcPath match service[i].proxy[j].src, if not return ""
+		// 3. get dstPath via stripPrefix,
+		staticResourceName := utils.GetStaticFileName(r.URL.Path)
+		srcPath, dstPath, ok := sfm.StripURLPathPrefix(r.URL.Path)
+
 		// Static resources
-		// waiting for my implementation
-		// utils.StaticSuffixDetermine return isStatic(true) means r.URL.Path suffix satisfy rules
+		// (staticResourceName != "") means r.URL.Path suffix satisfy rules
+		// moreover, dstPath & srcPath == "" only when srcPath cannot match
 		// e.g. /api/v1/food/1.js or /api/v3/test/.html.css.js
-		if isStatic, err := utils.StaticSuffixDetermine(r.URL.Path, ""); isStatic {
-			srcPath, result, ok := sfm.StripURLPathPrefix(r.URL.Path)
-			// result("") && ok(false) only when proxy doesn't exist, fatal error => return
-			// result("") && ok(true) is unknown error (it means r.URL.Path doesn't satisfy static file rules)
-			if result == "" && !ok {
+		if staticResourceName != "" {
+			// srcPath("") && ok(false) only when proxy doesn't exist, fatal error => return
+			if srcPath == "" && !ok {
 				logger.Warningln("ngoinx.server.Server.handlerGenerator error: FolderManager.StripURLPathPrefix failed: prefix do not exist")
 				return
-			} else if (result == "" && ok) || (result != "" && !ok) {
-				logger.Warningln("ngoinx.server.Server.handlerGenerator error: Unknown error about r.URL.Path")
 			}
-			if err != nil {
-				logger.Warningln("ngoinx.server.Server.handlerGenerator error: FolderManager.StripURLPathPrefix failed :", err.Error())
+
+			// dstPath("") is unknown error (it means r.URL.Path doesn't satisfy static file rules)
+			if dstPath == "" {
+				logger.WithFields(log.Fields{"srcPath": srcPath, "dstPath": dstPath, "ok": ok, "staticResourceName": staticResourceName}).Warningln(
+					"ngoinx.server.Server.handlerGenerator error: unknown wrong, dstPath is ''")
 				return
 			}
 
 			// check if srcPath in sfm.Folders
 			folder, ok := sfm.Folders[srcPath]
 			if !ok {
-				logger.Warningln("ngoinx.server.Server.handlerGenerator error: srcPath(", srcPath, ") doesn't exist in sfm.Folders")
+				logger.WithFields(log.Fields{"srcPath": srcPath}).Warningln(
+					"ngoinx.server.Server.handlerGenerator error: srcPath doesn't exist in sfm.Folders")
 				return
 			}
 
 			// try to open file in folder
-			fd, err := folder.Open(filepath.FromSlash(filepath.Clean(result)))
+			fd, err := folder.Open(filepath.FromSlash(filepath.Clean(dstPath)))
 			if err == nil {
-				logger.WithFields(log.Fields{"SrcPath": srcPath, "FilePath": filepath.FromSlash(filepath.Clean(result))}).Info(
-					"Success Opening FILE, io.Copy will execute later.",
-				)
+				logger.WithFields(log.Fields{"SrcPath": srcPath, "FilePath": filepath.FromSlash(filepath.Clean(dstPath))}).Info(
+					"Success opening FILE in static resource cache, io.Copy will execute later.")
 				io.Copy(rw, fd)
 				return
 			}
-			logger.Infoln("ngoinx.server.Server.handlerGenerator error:", result, "do not exist")
-			return
+
+			// file doesn't exist in local storage, log and move to dynamic resources process
+			logger.WithFields(log.Fields{"dstPath": dstPath}).Infoln(
+				"ngoinx.server.Server.handlerGenerator error: file do not exist, download from remote later")
 		}
 
 		// Dynamic resources
 		// get resources from scheme://userinfo@host
 		// use r.URL.Path to select Node from MAP maintained by LoadBalancer
-		ldblser, ok := ldbls.LdblserMap[r.URL.Path]
+		ldblser, ok := ldbls.LdblserMap[string(srcPath)]
 		if !ok {
-			logger.Warningln("ngoinx.server.Server.handlerGenerator error: r.URL.Path doesn't exist in ldbls.LdblserMap")
+			logger.WithFields(log.Fields{"srcPath": srcPath}).Warningln(
+				"ngoinx.server.Server.handlerGenerator error: srcPath doesn't exist in ldbls.LdblserMap")
 			return
 		}
 
@@ -168,5 +179,18 @@ func handlerGenerator(logger *log.Entry, sfm *staticfs.FolderManager) (handler h
 			rw.Header().Set(k, v[0])
 		}
 		io.Copy(rw, resp.Body)
+
+		// Dynamic resource process the same as Static resource
+		// get static resource from resp.Body
+		// perhaps get a null static resource, and this will be deleted by sfm.Clean
+		if staticResourceName != "" {
+			folder, _ := sfm.Folders[srcPath]
+			fd, err := folder.Create(staticResourceName)
+			if err != nil {
+				logger.Warningln("ngoinx.server.Server.handlerGenerator error: Folder.Create failed :", err.Error())
+				return
+			}
+			io.Copy(fd, resp.Body)
+		}
 	}
 }
