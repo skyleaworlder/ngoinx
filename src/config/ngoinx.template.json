@@ -3,6 +3,7 @@
     {
       "listen": 10080,
       "log": "./log/",
+      "static": "./static/v1/",
       "proxy": [
         {
           "src": "/api/v1/test",
@@ -26,6 +27,7 @@
     {
       "listen": 30080,
       "log": "./log/",
+      "static": "./static/v3/",
       "proxy": [
         {
           "src": "/api/v3/test",

@@ -6,6 +6,7 @@ import "github.com/tidwall/gjson"
 type Service struct {
 	Listen  uint16
 	Log     string
+	Static  string
 	Proxies []Proxy
 }
 
@@ -13,6 +14,7 @@ type Service struct {
 func (s *Service) Unmarshal(res gjson.Result) {
 	s.Listen = uint16(res.Get("listen").Uint())
 	s.Log = res.Get("log").String()
+	s.Static = res.Get("static").String()
 	for _, proxy := range res.Get("proxy").Array() {
 		p := Proxy{}
 		p.Unmarshal(proxy)
