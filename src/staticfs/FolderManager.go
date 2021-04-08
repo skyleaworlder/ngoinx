@@ -3,8 +3,12 @@ package staticfs
 import (
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
 	"time"
 
+	log "github.com/sirupsen/logrus"
 	"github.com/skyleaworlder/ngoinx/src/config"
 	"github.com/skyleaworlder/ngoinx/src/utils"
 )
@@ -16,16 +20,36 @@ type SrcPath string
 // each SrcPath has its own *Folder,
 // and Folder contains static resource corresponding SrcPath
 type FolderManager struct {
-	Folders map[SrcPath]*Folder
+	Folders  map[SrcPath]*Folder
+	fmLogger *log.Entry
+}
+
+// NewDefaultFolderManager is a default constructor
+func NewDefaultFolderManager() (sfm *FolderManager) {
+	return &FolderManager{Folders: make(map[SrcPath]*Folder), fmLogger: log.NewEntry(log.New())}
 }
 
 // Init is to init static folder manager
-func (sfm *FolderManager) Init(Service []config.Service) (err error) {
-	sfm.Folders = make(map[SrcPath]*Folder)
+func (sfm *FolderManager) Init(logger *log.Entry, Service []config.Service) (err error) {
+	// assign fmLogger
+	sfm.fmLogger = logger
+
+	// generate Folders
 	for _, svc := range config.Svc {
 		for _, proxy := range svc.Proxies {
 			fdr := NewStaticFolder(svc.Static, proxy.Src)
 			fdr.mkdir()
+
+			// SetLogger for Folder
+			cfg := &utils.LoggerConfig{
+				LogPath:      svc.Log,
+				LogSuffix:    ".log",
+				LogFormatter: &log.TextFormatter{},
+				LogLevel:     log.DebugLevel,
+				LogFileName:  "StaticFolder-" + strings.ReplaceAll(filepath.Clean(filepath.FromSlash(filepath.Join(svc.Static, proxy.Src))), "\\", "-"),
+			}
+			cfg.LogOutput, _ = os.OpenFile(cfg.LogPath+cfg.LogFileName+cfg.LogSuffix, os.O_CREATE|os.O_WRONLY, 0755)
+			fdr.SetLogger(cfg)
 			sfm.Folders[SrcPath(proxy.Src)] = fdr
 		}
 	}
