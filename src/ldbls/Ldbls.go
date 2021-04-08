@@ -44,18 +44,18 @@ type LoadBalancer interface {
 // len(target) \in [4, \inf] => use ConsistHash
 func LdblserMapStuffer(service []config.Service) {
 	for _, svc := range service {
-		for idx, proxy := range svc.Proxies {
+		for no, proxy := range svc.Proxies {
 			var ldblser LoadBalancer
 			cfg := &utils.LoggerConfig{LogPath: svc.Log, LogSuffix: ".log", LogFormatter: &log.TextFormatter{}, LogLevel: log.DebugLevel}
 			if len(proxy.Target) >= 4 {
-				cfg.LogFileName = "ConsistHash-" + strconv.Itoa(idx)
+				cfg.LogFileName = "ConsistHash-" + strconv.Itoa(no)
 				cfg.LogOutput, _ = os.OpenFile(cfg.LogPath+cfg.LogFileName+cfg.LogSuffix, os.O_CREATE|os.O_WRONLY, 0755)
-				ldblser = NewDefaultConsistHash(len(proxy.Target), idx)
+				ldblser = NewDefaultConsistHash(len(proxy.Target), no)
 				ldblser.SetLogger(cfg)
 			} else {
-				cfg.LogFileName = "WeightedRoundRobin-" + strconv.Itoa(idx)
+				cfg.LogFileName = "WeightedRoundRobin-" + strconv.Itoa(no)
 				cfg.LogOutput, _ = os.OpenFile(cfg.LogPath+cfg.LogFileName+cfg.LogSuffix, os.O_CREATE|os.O_WRONLY, 0755)
-				ldblser = NewDefaultWeightedRoundRobin(len(proxy.Target), idx, svc.Log)
+				ldblser = NewDefaultWeightedRoundRobin(len(proxy.Target), no)
 				ldblser.SetLogger(cfg)
 			}
 			ldblser.Init(proxy.Target)

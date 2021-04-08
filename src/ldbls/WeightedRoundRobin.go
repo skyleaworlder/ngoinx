@@ -21,7 +21,7 @@ type WeightedRoundRobin struct {
 }
 
 // NewDefaultWeightedRoundRobin is default constructor
-func NewDefaultWeightedRoundRobin(size, no int, logPath string) (wr *WeightedRoundRobin) {
+func NewDefaultWeightedRoundRobin(size, no int) (wr *WeightedRoundRobin) {
 	logger := log.NewEntry(log.New())
 	return &WeightedRoundRobin{Size: size, No: no, Nodes: []*RoundRobinNode{}, pointer: 0, log: logger}
 }
@@ -52,7 +52,10 @@ func (wr *WeightedRoundRobin) GetAddr(req *http.Request) (addr string, err error
 	addr = node.dst
 
 	// for debug
-	// fmt.Println("node.time:", node.time, "wr.pointer:", wr.pointer)
+	wr.log.WithFields(log.Fields{"node.time": node.time, "wr.pointer": wr.pointer}).Info(
+		"WeightedRoundRobin GetAddr status: node.time and node.weight:", node.weight,
+		"wr.pointer and wr.Size:", wr.Size,
+	)
 	if node.time++; node.time == node.weight {
 		node.time = 0
 		if wr.pointer++; wr.pointer == wr.Size {
