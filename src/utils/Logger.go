@@ -6,6 +6,14 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+// Loggerable is an interface balabala
+type Loggerable interface {
+	// Default logger should be log.NewEntry(log.New()), namely,
+	// Logger{ Out: os.Stderr, Formatter: new(logrus.TextFormatter), Hooks: make(logrus.LevelHooks), Level: logrus.DebugLevel }
+	// SetLogger will custom logger
+	SetLogger(cfg *LoggerConfig) (err error)
+}
+
 // LoggerConfig is a struct to contain logrus's config
 type LoggerConfig struct {
 	LogPath     string

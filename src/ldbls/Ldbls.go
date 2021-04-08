@@ -33,10 +33,8 @@ type LoadBalancer interface {
 	// use "ldbls.LdblserMap[req.URL.Path].GetAddr(r)" to get addr
 	GetAddr(req *http.Request) (addr string, err error)
 
-	// Default logger is log.NewEntry(log.New()), namely,
-	// Logger{ Out: os.Stderr, Formatter: new(logrus.TextFormatter), Hooks: make(logrus.LevelHooks), Level: logrus.DebugLevel }
-	// SetLogger will custom logger
-	SetLogger(cfg *utils.LoggerConfig) (err error)
+	// Loggerable need to implement method "SetLogger"
+	utils.Loggerable
 }
 
 // LdblserMapStuffer is a tool func to fill ldblsermap
