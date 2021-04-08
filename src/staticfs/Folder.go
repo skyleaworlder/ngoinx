@@ -7,6 +7,9 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	log "github.com/sirupsen/logrus"
+	"github.com/skyleaworlder/ngoinx/src/utils"
 )
 
 // Folder is a struct implement http.FileSystem
@@ -15,6 +18,7 @@ import (
 // path is defined as service.static + strings.ReplaceAll(service.proxy[i].src[1:], "/", "-")
 type Folder struct {
 	path string
+	log  *log.Entry
 }
 
 // NewDefaultFolder is a default constructor
@@ -43,6 +47,20 @@ func (sf *Folder) Create(name string) (file *os.File, err error) {
 	fileName := filepath.Join(sf.path, filepath.FromSlash(filepath.Clean(name)))
 	file, err = os.Create(fileName)
 	return
+}
+
+// SetLogger is to implement interface "Loggerable"
+func (sf *Folder) SetLogger(cfg *utils.LoggerConfig) (err error) {
+	// e.g LogPath is "./log/", LogFileName is "StaticFolder-v1-api-v1-food", LogSuffix is ".log"
+	// then log file is ./log/StaticFolder-v1-api-v1-food.log
+	logName := cfg.LogPath + cfg.LogFileName + cfg.LogSuffix
+	fd, err := os.OpenFile(logName, os.O_CREATE|os.O_WRONLY, 0755)
+	if err != nil {
+		fmt.Println("ngoinx.ldbls.ConsistHash.SetLogger error: create/open log file", logName, "failed")
+		return err
+	}
+	sf.log = utils.LoggerGenerator(cfg.LogFormatter, fd, cfg.LogLevel)
+	return nil
 }
 
 // mkdir wrap os.MkdirAll function
