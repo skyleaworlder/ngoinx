@@ -37,9 +37,14 @@ func StripURLPathPrefix(path, prefix string) (result string, ok bool) {
 }
 
 // GetStaticFileName is a tool function
-// if path == "static\v1\api-v1-test\1.js", return 1.js
+// if path == "static\v1\api-v1-test\1.js", return 1.js;
+// if path == "static\v1\api-v1-test", return ""
 func GetStaticFileName(path string) (name string) {
 	pathFormal := filepath.FromSlash(filepath.Clean(path))
 	slashIdx := strings.LastIndex(pathFormal, "\\")
-	return pathFormal[slashIdx+1:]
+
+	if isStatic, _ := StaticSuffixDetermine(pathFormal[slashIdx+1:], ""); isStatic {
+		return pathFormal[slashIdx+1:]
+	}
+	return ""
 }
