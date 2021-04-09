@@ -2,7 +2,6 @@ package staticfs
 
 import (
 	"errors"
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -56,7 +55,7 @@ func (sfm *FolderManager) Init(logger *log.Entry, Service []config.Service) (err
 	return
 }
 
-// Serve is to raise clean
+// Serve is a wrapper, only to raise clean
 func (sfm *FolderManager) Serve() (err error) {
 	return sfm.clean()
 }
@@ -69,7 +68,7 @@ func (sfm *FolderManager) StripURLPathPrefix(path string) (srcPath SrcPath, dstP
 	for srcPath := range sfm.Folders {
 		// Folders' keys are all from service[i].proxy[j].src
 		// check whether path has the prefix "service[i].proxy[j].src"
-		fmt.Println("fordebug, path(r.URL.Path):", path)
+		sfm.fmLogger.WithField("r.URL.Path", path).Debugln("this method called in Server.handlerGenerator")
 		if dstPath, ok := utils.StripURLPathPrefix(path, string(srcPath)); ok {
 			return srcPath, dstPath, ok
 		}
@@ -79,11 +78,11 @@ func (sfm *FolderManager) StripURLPathPrefix(path string) (srcPath SrcPath, dstP
 
 func (sfm *FolderManager) clean() (err error) {
 	for running := true; running; {
-		fmt.Println("clean!!!!!")
+		sfm.fmLogger.Infoln("ngoinx.staticfs.FolderManager.clean: begin cleaning Folders")
 		for _, folder := range sfm.Folders {
 			folder.clean()
 		}
-		time.Sleep(time.Second * 10)
+		time.Sleep(time.Minute)
 	}
-	return errors.New("ngoinx.staticfs.FolderManager.clean quit")
+	return errors.New("ngoinx.staticfs.FolderManager.clean error: clean quit unexpectedly")
 }
