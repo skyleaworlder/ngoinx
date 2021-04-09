@@ -33,6 +33,8 @@ func NewNgoinxServer(logger *log.Entry, service []config.Service) (s *Server) {
 	// generate svcLoggers
 	// loggers are used in handlerGenerator, in order to get logs when server serving
 	svcLoggers := []*log.Entry{}
+	sfmLogger := log.NewEntry(log.New())
+
 	for idx, svc := range service {
 		logName := "Ngoinx-" + strconv.Itoa(idx) + "-Port-" + strconv.Itoa(int(svc.Listen)) + ".log"
 		fd, err := os.OpenFile(logName, os.O_CREATE|os.O_WRONLY, 0755)
@@ -45,8 +47,8 @@ func NewNgoinxServer(logger *log.Entry, service []config.Service) (s *Server) {
 	}
 
 	// new a static folder manager
-	sfm := &staticfs.FolderManager{}
-	err := sfm.Init(service)
+	sfm := staticfs.NewDefaultFolderManager()
+	err := sfm.Init(sfmLogger, service)
 	if err != nil {
 		logger.Fatal("ngoinx.server.NewNgoinxServer error: init static folder manager failed")
 		return nil
@@ -98,7 +100,12 @@ func handlerGenerator(logger *log.Entry, sfm *staticfs.FolderManager) (handler h
 		if staticResourceName != "" {
 			// srcPath("") && ok(false) only when proxy doesn't exist, fatal error => return
 			if srcPath == "" && !ok {
-				logger.Warningln("ngoinx.server.Server.handlerGenerator error: FolderManager.StripURLPathPrefix failed: prefix do not exist")
+				logger.WithFields(log.Fields{
+					"srcPath":            srcPath,
+					"dstPath":            dstPath,
+					"r.URL.Path":         r.URL.Path,
+					"staticResourcePath": staticResourceName},
+				).Warningln("ngoinx.server.Server.handlerGenerator error: FolderManager.StripURLPathPrefix failed: prefix do not exist")
 				return
 			}
 
@@ -120,6 +127,7 @@ func handlerGenerator(logger *log.Entry, sfm *staticfs.FolderManager) (handler h
 			// try to open file in folder
 			fd, err := folder.Open(filepath.FromSlash(filepath.Clean(dstPath)))
 			if err == nil {
+				defer fd.Close()
 				logger.WithFields(log.Fields{"SrcPath": srcPath, "FilePath": filepath.FromSlash(filepath.Clean(dstPath))}).Info(
 					"Success opening FILE in static resource cache, io.Copy will execute later.")
 				io.Copy(rw, fd)
@@ -148,14 +156,17 @@ func handlerGenerator(logger *log.Entry, sfm *staticfs.FolderManager) (handler h
 		}
 
 		// cat relayURL
-		relayURL := addr + r.URL.Path + r.URL.RawQuery + r.URL.Fragment
+		// e.g. service{listen: 10080, proxy:[{src: /api/v1/food, target:[dst: "http://localhost:10081"]}]}
+		// http://localhost:10080/api/v1/food => http://localhost:10081
+		// http://localhost:10080/api/v1/food/1.js => http://localhost:10081/1.js
+		relayURL := addr + dstPath + r.URL.RawQuery + r.URL.Fragment
 
 		// for debug
 		logger.WithFields(log.Fields{
-			"url.path":    r.URL.Path,
+			"dstPath":     dstPath,
 			"addr chosen": addr,
 			"relay URL":   relayURL,
-			"map get":     ldbls.LdblserMap[r.URL.Path],
+			"map get":     ldbls.LdblserMap[string(srcPath)],
 		}).Info("This info appear only if a request comes")
 
 		req, err := http.NewRequest(r.Method, relayURL, strings.NewReader(string(body)))
@@ -174,23 +185,37 @@ func handlerGenerator(logger *log.Entry, sfm *staticfs.FolderManager) (handler h
 		}
 		defer resp.Body.Close()
 
+		// Static resource also get from resp.Body
+		// execute the following block only when static resource doesn't exist
+		// (if exists, folder.Open will process)
+		if staticResourceName != "" {
+			folder, _ := sfm.Folders[srcPath]
+			// create file (because it doesn't exist indeed)
+			fdc, err := folder.Create(staticResourceName)
+			if err != nil {
+				logger.Warningln("ngoinx.server.Server.handlerGenerator error: Folder.Create failed :", err.Error())
+				return
+			}
+			io.Copy(fdc, resp.Body)
+			fdc.Close()
+
+			// reopen it, in order to use io.Copy(rw, fdo)
+			// (since io.Copy(fdc, resp.Body), resp.Body cannot be used anymore)
+			fdo, err := folder.Open(staticResourceName)
+			if err != nil {
+				logger.Warningln("ngoinx.server.Server.handlerGenerator error: Folder.Open failed :", err.Error())
+				return
+			}
+			defer fdo.Close()
+			io.Copy(rw, fdo)
+			return
+		}
+
+		// Dynamic resource process through forrange & io.Copy directly
 		// copy resp's Header to rw
 		for k, v := range resp.Header {
 			rw.Header().Set(k, v[0])
 		}
 		io.Copy(rw, resp.Body)
-
-		// Dynamic resource process the same as Static resource
-		// get static resource from resp.Body
-		// perhaps get a null static resource, and this will be deleted by sfm.Clean
-		if staticResourceName != "" {
-			folder, _ := sfm.Folders[srcPath]
-			fd, err := folder.Create(staticResourceName)
-			if err != nil {
-				logger.Warningln("ngoinx.server.Server.handlerGenerator error: Folder.Create failed :", err.Error())
-				return
-			}
-			io.Copy(fd, resp.Body)
-		}
 	}
 }
