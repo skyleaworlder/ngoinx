@@ -12,7 +12,7 @@ import (
 )
 
 func Test_LdblsMapStuffer(t *testing.T) {
-	svc, _ := utils.ReadConfig("../config/ngoinx.template.json")
+	svc, _ := utils.ReadConfig("../../ngoinx.template.json")
 	ldbls.LdblserMapStuffer(svc)
 	fmt.Println(ldbls.LdblserMap)
 

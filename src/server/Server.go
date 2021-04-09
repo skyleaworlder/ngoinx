@@ -36,7 +36,8 @@ func NewNgoinxServer(logger *log.Entry, service []config.Service) (s *Server) {
 	sfmLogger := log.NewEntry(log.New())
 
 	for idx, svc := range service {
-		logName := "Ngoinx-" + strconv.Itoa(idx) + "-Port-" + strconv.Itoa(int(svc.Listen)) + ".log"
+		logPath, logFileName, logSuffix := svc.Log, "Ngoinx-"+strconv.Itoa(idx)+"-Port-"+strconv.Itoa(int(svc.Listen)), ".log"
+		logName := logPath + logFileName + logSuffix
 		fd, err := os.OpenFile(logName, os.O_CREATE|os.O_WRONLY, 0755)
 		if err != nil {
 			fmt.Println("ngoinx.server.NewNgoinxServer error:", err.Error())

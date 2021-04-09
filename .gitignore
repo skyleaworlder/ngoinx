@@ -15,5 +15,10 @@
 # vendor/
 
 # Log files should not be uploaded
-log/
 *.log
+
+# Static resources for test should not be uploaded
+*.html
+*.css
+*.js
+*.ico
