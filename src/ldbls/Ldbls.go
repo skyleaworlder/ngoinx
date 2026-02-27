@@ -45,17 +45,22 @@ func LdblserMapStuffer(service []config.Service) {
 		for no, proxy := range svc.Proxies {
 			var ldblser LoadBalancer
 			cfg := &utils.LoggerConfig{LogPath: svc.Log, LogSuffix: ".log", LogFormatter: &log.TextFormatter{}, LogLevel: log.DebugLevel}
-			if len(proxy.Target) >= 4 {
-				cfg.LogFileName = "ConsistHash-" + strconv.Itoa(no)
-				cfg.LogOutput, _ = os.OpenFile(cfg.LogPath+cfg.LogFileName+cfg.LogSuffix, os.O_CREATE|os.O_WRONLY, 0755)
-				ldblser = NewDefaultConsistHash(len(proxy.Target), no)
-				ldblser.SetLogger(cfg)
-			} else {
-				cfg.LogFileName = "WeightedRoundRobin-" + strconv.Itoa(no)
-				cfg.LogOutput, _ = os.OpenFile(cfg.LogPath+cfg.LogFileName+cfg.LogSuffix, os.O_CREATE|os.O_WRONLY, 0755)
-				ldblser = NewDefaultWeightedRoundRobin(len(proxy.Target), no)
-				ldblser.SetLogger(cfg)
-			}
+		if len(proxy.Target) >= 4 {
+			cfg.LogFileName = "ConsistHash-" + strconv.Itoa(no)
+			cfg.LogOutput, _ = os.OpenFile(cfg.LogPath+cfg.LogFileName+cfg.LogSuffix, os.O_CREATE|os.O_WRONLY, 0755)
+			ldblser = NewDefaultConsistHash(len(proxy.Target), no)
+			ldblser.SetLogger(cfg)
+		} else if len(proxy.Target) >= 2 {
+			cfg.LogFileName = "WeightedRoundRobin-" + strconv.Itoa(no)
+			cfg.LogOutput, _ = os.OpenFile(cfg.LogPath+cfg.LogFileName+cfg.LogSuffix, os.O_CREATE|os.O_WRONLY, 0755)
+			ldblser = NewDefaultWeightedRoundRobin(len(proxy.Target), no)
+			ldblser.SetLogger(cfg)
+		} else {
+			cfg.LogFileName = "LeastConnections-" + strconv.Itoa(no)
+			cfg.LogOutput, _ = os.OpenFile(cfg.LogPath+cfg.LogFileName+cfg.LogSuffix, os.O_CREATE|os.O_WRONLY, 0755)
+			ldblser = NewDefaultLeastConnections(len(proxy.Target), no)
+			ldblser.SetLogger(cfg)
+		}
 			ldblser.Init(proxy.Target)
 			LdblserMap[proxy.Src] = ldblser
 		}
